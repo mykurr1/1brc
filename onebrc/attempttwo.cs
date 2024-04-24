@@ -22,7 +22,7 @@ namespace onebrc
         {
             var measurementsDictionary = new ConcurrentDictionary<string, TemperatureStats>(Environment.ProcessorCount * 2, 1000000000);
 
-            var lines = File.ReadLines(@"T:\1brc\1brc.data\1brc\mediumbig.txt").ToArray();
+            var lines = File.ReadLines("input.txt").ToArray();
             var rangePartitioner = Partitioner.Create(0, lines.Length);
 
             Parallel.ForEach(rangePartitioner, range =>
@@ -69,7 +69,7 @@ namespace onebrc
             }
             sb.Append("}");
 
-            Console.WriteLine(sb.ToString());
+            File.WriteAllText("output.txt", sb.ToString()); // Write the output to a file
         }
     }
 }
