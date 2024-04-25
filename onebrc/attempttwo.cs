@@ -1,4 +1,5 @@
-﻿using System;
+﻿//1BRC second attempt - using multithreading 
+using System;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.IO;
@@ -22,54 +23,55 @@ namespace onebrc
         {
             var measurementsDictionary = new ConcurrentDictionary<string, TemperatureStats>(Environment.ProcessorCount * 2, 1000000000);
 
-            var lines = File.ReadLines("input.txt").ToArray();
-            var rangePartitioner = Partitioner.Create(0, lines.Length);
-
-            Parallel.ForEach(rangePartitioner, range =>
+            using (var reader = new StreamReader("input.txt"))
             {
-                var buffer = ArrayPool<char>.Shared.Rent(128); // Rent a buffer from the pool
-                try
+                var lines = new List<string>();
+                string line;
+                while ((line = reader.ReadLine()) != null)
                 {
-                    for (int i = range.Item1; i < range.Item2; i++)
+                    lines.Add(line);
+                }
+
+                Parallel.For(0, lines.Count, i =>
+                {
+                    var line = lines[i];
+                    var separatorIndex = line.IndexOf(';');
+                    if (separatorIndex > 0 && separatorIndex < line.Length - 1)
                     {
-                        var line = lines[i];
-                        var separatorIndex = line.IndexOf(';');
-                        if (separatorIndex > 0 && separatorIndex < line.Length - 1)
+                        var station = line.AsSpan(0, separatorIndex).ToString();
+                        if (double.TryParse(line.AsSpan(separatorIndex + 1), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var temperature))
                         {
-                            var station = line.AsSpan(0, separatorIndex).ToString();
-                            if (double.TryParse(line.AsSpan(separatorIndex + 1), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var temperature))
+                            var newStats = new TemperatureStats { Min = temperature, Max = temperature, Sum = temperature, Count = 1 };
+                            if (measurementsDictionary.TryGetValue(station, out var oldStats))
                             {
-                                measurementsDictionary.AddOrUpdate(station,
-                                    new TemperatureStats { Min = temperature, Max = temperature, Sum = temperature, Count = 1 },
-                                    (_, old) => new TemperatureStats { Min = Math.Min(old.Min, temperature), Max = Math.Max(old.Max, temperature), Sum = old.Sum + temperature, Count = old.Count + 1 });
+                                var updatedStats = new TemperatureStats { Min = Math.Min(oldStats.Min, temperature), Max = Math.Max(oldStats.Max, temperature), Sum = oldStats.Sum + temperature, Count = oldStats.Count + 1 };
+                                measurementsDictionary.TryUpdate(station, updatedStats, oldStats);
+                            }
+                            else
+                            {
+                                measurementsDictionary.TryAdd(station, newStats);
                             }
                         }
                     }
-                }
-                finally
-                {
-                    ArrayPool<char>.Shared.Return(buffer); // Return the buffer to the pool
-                }
-            });
+                });
+            }
 
             var sortedMeasurementsDictionary = measurementsDictionary.OrderBy(kvp => kvp.Key);
 
-            var sb = new StringBuilder(sortedMeasurementsDictionary.Count() * 50); // Estimate the capacity
-            sb.Append("{");
-            foreach (var kvp in sortedMeasurementsDictionary)
+            using (var writer = new StreamWriter("output.txt"))
             {
-                var station = kvp.Key;
-                var data = kvp.Value;
-                var mean = data.Sum / data.Count;
-                sb.AppendFormat("{0}={1:F1}/{2:F1}/{3:F1}, ", station, data.Min, mean, data.Max);
+                var output = new List<string> {"{"};
+                foreach (var kvp in sortedMeasurementsDictionary)
+                {
+                    var station = kvp.Key;
+                    var data = kvp.Value;
+                    var mean = data.Sum / data.Count;
+                    output.Add($"{station}={data.Min:F1}/{mean:F1}/{data.Max:F1}, ");
+                }
+                output[output.Count - 1] = output.Last().TrimEnd(',', ' '); // Remove last comma and space
+                output.Add("}");
+                writer.Write(string.Join("", output));
             }
-            if (sb.Length > 2)
-            {
-                sb.Length -= 2; // Remove last comma and space
-            }
-            sb.Append("}");
-
-            File.WriteAllText("output.txt", sb.ToString()); // Write the output to a file
         }
     }
 }
