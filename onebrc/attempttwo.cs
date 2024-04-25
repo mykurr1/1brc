@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 
 namespace onebrc
 {
+    //struct for temperatures 
     struct TemperatureStats
     {
         public double Min;
@@ -31,7 +32,8 @@ namespace onebrc
                 {
                     lines.Add(line);
                 }
-
+                
+                //parallel processing of lines 
                 Parallel.For(0, lines.Count, i =>
                 {
                     var line = lines[i];
@@ -55,9 +57,11 @@ namespace onebrc
                     }
                 });
             }
-
+            
+            //sorting
             var sortedMeasurementsDictionary = measurementsDictionary.OrderBy(kvp => kvp.Key);
-
+            
+            //writing to output.txt
             using (var writer = new StreamWriter("output.txt"))
             {
                 var output = new List<string> {"{"};
